@@ -204,7 +204,7 @@ interface TransactionData {
     contract?: Contract;
     function: string;
     params: string[];
-    outputs?: {};
+    outputs?: any;
 }
 
 /**
