@@ -2,6 +2,7 @@ import { BigNumberish, BigNumber } from '@ethersproject/bignumber';
 import { Contract } from '@ethersproject/contracts';
 import { SOR } from 'sor-linear';
 import { Signer, TypedDataSigner } from '@ethersproject/abstract-signer';
+import { JsonRpcProvider } from '@ethersproject/providers';
 
 declare enum StablePoolJoinKind {
     INIT = 0,
@@ -343,6 +344,10 @@ declare class AssetHelpers {
     sortTokens(tokens: string[], ...others: unknown[][]): [string[], ...unknown[][]];
 }
 
+declare class AaveHelpers {
+    static getRate(rateProviderAddress: string, provider: JsonRpcProvider): Promise<string>;
+}
+
 declare const isSameAddress: (address1: string, address2: string) => boolean;
 
 declare enum SwapType {
@@ -384,6 +389,13 @@ declare type BatchSwap = {
     limits: BigNumberish[];
     deadline: BigNumberish;
 };
+interface QueryWithSor {
+    tokensIn: string[];
+    tokensOut: string[];
+    swapType: SwapType;
+    amounts: BigNumberish[];
+    fetchPools: boolean;
+}
 
 declare class SwapsService {
     network: Network;
@@ -393,37 +405,27 @@ declare class SwapsService {
     static getLimitsForSlippage(tokensIn: string[], tokensOut: string[], swapType: SwapType, amountsTokenIn: BigNumberish[], amountsTokenOut: BigNumberish[], assets: string[], slippage: BigNumberish): BigNumberish[];
     /**
      * queryBatchSwap simulates a call to `batchSwap`, returning an array of Vault asset deltas.
-     * @param swapType - either exactIn or exactOut.
-     * @param swaps - sequence of swaps.
-     * @param assets - array contains the addresses of all assets involved in the swaps.
+     * @param batchSwap - BatchSwap information used for query.
+     * @param batchSwap.kind - either exactIn or exactOut.
+     * @param batchSwap.swaps - sequence of swaps.
+     * @param batchSwap.assets - array contains the addresses of all assets involved in the swaps.
      * @returns Returns an array with the net Vault asset balance deltas. Positive amounts represent tokens (or ETH) sent to the
      * Vault, and negative amounts represent tokens (or ETH) sent by the Vault. Each delta corresponds to the asset at
      * the same index in the `assets` array.
      */
-    queryBatchSwap(swapType: SwapType, swaps: BatchSwapStep[], assets: string[]): Promise<BigNumberish[]>;
+    queryBatchSwap(batchSwap: Pick<BatchSwap, 'kind' | 'swaps' | 'assets'>): Promise<BigNumberish[]>;
     /**
-     * Uses SOR to create and query a batchSwap for multiple tokens in > single tokenOut.
-     * @param tokensIn - array of addresses of assets in.
-     * @param amountsIn - array of amounts for tokens in.
-     * @param tokenOut - asset out.
-     * @param fetchPools - if true SOR will fetch updated pool info from Subgraph.
-     * @returns Returns amount of tokenOut along with swap and asset info that can be submitted to a batchSwap call.
+     * Uses SOR to create and query a batchSwap.
+     * @param queryWithSor - Swap information used for querying using SOR.
+     * @param queryWithSor.tokensIn - Array of addresses of assets in.
+     * @param queryWithSor.tokensOut - Array of addresses of assets out.
+     * @param queryWithSor.swapType - Type of Swap, ExactIn/Out.
+     * @param queryWithSor.amounts - Array of amounts used in swap.
+     * @param queryWithSor.fetchPools - If true SOR will fetch updated pool info from Subgraph.
+     * @returns Returns amount of tokens swaps along with swap and asset info that can be submitted to a batchSwap call.
      */
-    queryBatchSwapTokensIn(tokensIn: string[], amountsIn: BigNumberish[], tokenOut: string, fetchPools?: boolean): Promise<{
-        amountTokenOut: BigNumberish;
-        swaps: BatchSwapStep[];
-        assets: string[];
-    }>;
-    /**
-     * Uses SOR to create and query a batchSwap for multiple tokens in > single tokenOut.
-     * @param tokenIn - addresses of asset in.
-     * @param amountsIn - amount of tokenIn for corresponding tokenOut.
-     * @param tokensOut - array of addresses of assets out.
-     * @param fetchPools - if true SOR will fetch updated pool info from Subgraph.
-     * @returns Returns array of amounts for each tokenOut along with swap and asset info that can be submitted to a batchSwap call.
-     */
-    queryBatchSwapTokensOut(tokenIn: string, amountsIn: BigNumberish[], tokensOut: string[], fetchPools?: boolean): Promise<{
-        amountTokensOut: string[];
+    queryBatchSwapWithSor(queryWithSor: QueryWithSor): Promise<{
+        returnAmounts: BigNumberish[];
         swaps: BatchSwapStep[];
         assets: string[];
     }>;
@@ -471,16 +473,38 @@ declare class RelayerService {
     static encodeUnwrapAaveStaticToken(params: EncodeUnwrapAaveStaticTokenInput): string;
     static toChainedReference(key: BigNumberish): BigNumber;
     /**
-     * swapUnwrapExactIn returns call data for Relayer Multicall where batchSwaps followed by unwrap of Aave static tokens.
+     * swapUnwrapAaveStaticExactIn Finds swaps for tokenIn>wrapped Aave static tokens and chains with unwrap to underlying stable.
      * @param tokensIn - array to token addresses for swapping as tokens in.
+     * @param aaveStaticTokens - array contains the addresses of the Aave static tokens that tokenIn will be swapped to. These will be unwrapped.
      * @param amountsIn - amounts to be swapped for each token in.
-     * @param wrappedTokens - array contains the addresses of the Aave static tokens that tokenIn will be swapped to. These will be unwrapped.
      * @param rates - The rate used to convert wrappedToken to underlying.
      * @param funds - Funding info for swap. Note - recipient should be relayer and sender should be caller.
      * @param slippage - Slippage to be applied to swap section. i.e. 5%=50000000000000000.
      * @returns Transaction data with calldata. Outputs.amountsOut has final amounts out of unwrapped tokens.
      */
-    swapUnwrapExactIn(tokensIn: string[], amountsIn: BigNumberish[], wrappedTokens: string[], rates: BigNumberish[], funds: FundManagement, slippage: BigNumberish): Promise<TransactionData>;
+    swapUnwrapAaveStaticExactIn(tokensIn: string[], aaveStaticTokens: string[], amountsIn: BigNumberish[], rates: BigNumberish[], funds: FundManagement, slippage: BigNumberish): Promise<TransactionData>;
+    /**
+     * swapUnwrapAaveStaticExactOut Finds swaps for tokenIn>wrapped Aave static tokens and chains with unwrap to underlying stable.
+     * @param tokensIn - array to token addresses for swapping as tokens in.
+     * @param aaveStaticTokens - array contains the addresses of the Aave static tokens that tokenIn will be swapped to. These will be unwrapped.
+     * @param amountsUnwrapped - amounts of unwrapped tokens out.
+     * @param rates - The rate used to convert wrappedToken to underlying.
+     * @param funds - Funding info for swap. Note - recipient should be relayer and sender should be caller.
+     * @param slippage - Slippage to be applied to swap section. i.e. 5%=50000000000000000.
+     * @returns Transaction data with calldata. Outputs.amountsIn has the amounts of tokensIn.
+     */
+    swapUnwrapAaveStaticExactOut(tokensIn: string[], aaveStaticTokens: string[], amountsUnwrapped: BigNumberish[], rates: BigNumberish[], funds: FundManagement, slippage: BigNumberish): Promise<TransactionData>;
+    /**
+     * Creates encoded multicalls using swap outputs as input amounts for token unwrap.
+     * @param wrappedTokens
+     * @param swapType
+     * @param swaps
+     * @param assets
+     * @param funds
+     * @param limits
+     * @returns
+     */
+    encodeSwapUnwrap(wrappedTokens: string[], swapType: SwapType, swaps: BatchSwapStep[], assets: string[], funds: FundManagement, limits: BigNumberish[]): string[];
 }
 
 declare class BalancerSDK {
@@ -491,4 +515,4 @@ declare class BalancerSDK {
     constructor(config: ConfigSdk, swapService?: typeof SwapsService, relayerService?: typeof RelayerService);
 }
 
-export { Account, AssetHelpers, BalancerErrors, BalancerSDK, BatchSwap, BatchSwapStep, ConfigSdk, ExitPoolRequest, FundManagement, JoinPoolRequest, ManagedPoolEncoder, Network, PoolBalanceOp, PoolBalanceOpKind, PoolSpecialization, RelayerAction, RelayerAuthorization, SUBGRAPH_URLS, SingleSwap, StablePhantomPoolJoinKind, StablePoolEncoder, StablePoolExitKind, StablePoolJoinKind, Swap, SwapType, SwapsService, TransactionData, UserBalanceOp, UserBalanceOpKind, WeightedPoolEncoder, WeightedPoolExitKind, WeightedPoolJoinKind, accountToAddress, getLimitsForSlippage, getPoolAddress, getPoolNonce, getPoolSpecialization, isNormalizedWeights, isSameAddress, signPermit, splitPoolId, toNormalizedWeights };
+export { AaveHelpers, Account, AssetHelpers, BalancerErrors, BalancerSDK, BatchSwap, BatchSwapStep, ConfigSdk, ExitPoolRequest, FundManagement, JoinPoolRequest, ManagedPoolEncoder, Network, PoolBalanceOp, PoolBalanceOpKind, PoolSpecialization, QueryWithSor, RelayerAction, RelayerAuthorization, SUBGRAPH_URLS, SingleSwap, StablePhantomPoolJoinKind, StablePoolEncoder, StablePoolExitKind, StablePoolJoinKind, Swap, SwapType, SwapsService, TransactionData, UserBalanceOp, UserBalanceOpKind, WeightedPoolEncoder, WeightedPoolExitKind, WeightedPoolJoinKind, accountToAddress, getLimitsForSlippage, getPoolAddress, getPoolNonce, getPoolSpecialization, isNormalizedWeights, isSameAddress, signPermit, splitPoolId, toNormalizedWeights };
