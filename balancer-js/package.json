@@ -52,7 +52,7 @@
     "typescript": "^4.0.2"
   },
   "dependencies": {
-    "@balancer-labs/sor": "^2.1.0-beta.3",
+    "@balancer-labs/sor": "github:balancer-labs/balancer-sor#65fbec099c62a9148ef8cdc7049fa4d75191b245",
     "@ethersproject/abi": "^5.5.0",
     "@ethersproject/abstract-signer": "^5.5.0",
     "@ethersproject/contracts": "^5.5.0",
