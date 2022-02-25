@@ -45,7 +45,7 @@ export const BALANCER_NETWORK_CONFIG: Record<Network, BalancerNetworkConfig> = {
         },
         pools: {
             staBal3Pool: {
-                id: '0x7b50775383d3d6f0215a8f290f2c9e2eebbeceb20000000000000000000000fe',
+                id: '0x9e23cac8b509603e0a3aec3a5597cee86c911c87000000000000000000000000',
                 address: '0x7b50775383d3d6f0215a8f290f2c9e2eebbeceb2',
             },
         },
