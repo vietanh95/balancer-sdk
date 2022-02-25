@@ -41,7 +41,7 @@ export const BALANCER_NETWORK_CONFIG: Record<Network, BalancerNetworkConfig> = {
         },
         urls: {
             subgraph:
-                'http://35.233.179.163:8000/subgraphs/name/cronos/swap',
+                'http://35.233.179.163:8000/subgraphs/name/cronos/swappool/',
         },
         pools: {
             staBal3Pool: {
