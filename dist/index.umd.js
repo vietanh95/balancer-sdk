@@ -885,7 +885,7 @@
             addresses: {
                 contracts: {
                     vault: '0x18826CD00894a70201FCAaA9F634De5f9131F95A',
-                    multicall: '0xA840c32A5a87fdf24e2962664bf8e7ed4F575487',
+                    multicall: '0xEAF557e3bE5Eaa74B9424982526DE3A56BC395c4',
                 },
                 tokens: {
                     wrappedNativeAsset: '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
